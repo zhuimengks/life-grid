@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>人生时间格子 · 100年</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a2e;
+    --panel: #16213e;
+    --cell-empty: #2a2a4a;
+    --text: #eaeaea;
+    --text-dim: #888;
+    --accent: #4e9eff;
+    --danger: #ff4d4d;
+    --current: #ffd93d;
+    --border: #333;
+  }
+
+  body.light {
+    --bg: #f5f6fa;
+    --panel: #ffffff;
+    --cell-empty: #e0e3eb;
+    --text: #1a1a2e;
+    --text-dim: #888;
+    --accent: #2f7de1;
+    --danger: #e63946;
+    --current: #f4a900;
+    --border: #d5d9e0;
+  }
+
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+    transition: background .3s, color .3s;
+  }
+
+  h1 { font-size: 24px; font-weight: 600; margin-bottom: 8px; letter-spacing: 2px; }
+  .subtitle { font-size: 13px; color: var(--text-dim); margin-bottom: 24px; }
+
+  .toolbar {
+    position: fixed; top: 16px; right: 16px; z-index: 100;
+    display: flex; gap: 8px;
+  }
+
+  .theme-btn {
+    padding: 8px 16px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 20px;
+    background: var(--panel); color: var(--text);
+    cursor: pointer; transition: all .2s;
+  }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* 倒计时器 */
+  .countdown-box {
+    width: 100%; max-width: 960px;
+    background: var(--panel); border-radius: 16px;
+    padding: 20px; margin-bottom: 24px; text-align: center;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+  }
+  .countdown-box::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(circle at 50% 0%, rgba(255,77,77,.12), transparent 70%);
+    pointer-events: none;
+  }
+  .countdown-title {
+    font-size: 12px; color: var(--text-dim);
+    letter-spacing: 3px; margin-bottom: 14px; text-transform: uppercase;
+  }
+  .countdown { display: flex; justify-content: center; gap: 18px; flex-wrap: wrap; }
+  .cd-item {
+    min-width: 76px; padding: 10px 6px;
+    border-radius: 10px; background: var(--bg);
+    border: 1px solid var(--border); transition: transform .2s;
+  }
+  .cd-item.tick { transform: scale(1.06); }
+  .cd-value {
+    font-size: 30px; font-weight: 700; color: var(--danger);
+    font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: 1px;
+  }
+  .cd-label { font-size: 11px; color: var(--text-dim); margin-top: 6px; letter-spacing: 1px; }
+  .cd-foot { font-size: 12px; color: var(--text-dim); margin-top: 14px; }
+
+  /* 选择器 */
+  .input-area {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 22px; flex-wrap: wrap; justify-content: center;
+  }
+  .input-area label { font-size: 14px; color: var(--text-dim); }
+  .input-area select {
+    padding: 10px 14px; font-size: 15px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--panel); color: var(--text);
+    outline: none; cursor: pointer; transition: border-color .2s;
+  }
+  .input-area select:focus { border-color: var(--accent); }
+  .input-area button {
+    padding: 10px 24px; font-size: 15px; border: none;
+    border-radius: 8px; background: var(--accent); color: #fff;
+    cursor: pointer; transition: background .2s, transform .1s;
+  }
+  .input-area button:hover { filter: brightness(1.1); }
+  .input-area button:active { transform: scale(.97); }
+
+  /* 日模式年份切换条 */
+  .day-year-bar {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    padding: 10px 18px;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+  }
+  .day-year-bar.show { display: flex; }
+  .day-year-bar button {
+    padding: 6px 14px; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: transparent; color: var(--text);
+    cursor: pointer; transition: all .2s;
+  }
+  .day-year-bar button:hover { border-color: var(--accent); color: var(--accent); }
+  .day-year-bar button:disabled { opacity: .3; cursor: not-allowed; }
+  .day-year-bar .year-label {
+    font-size: 15px; font-weight: 600; color: var(--accent);
+    font-variant-numeric: tabular-nums; min-width: 80px; text-align: center;
+  }
+  .day-year-bar .hint {
+    font-size: 12px; color: var(--text-dim); margin-left: auto;
+  }
+
+  /* 备注工具条 */
+  .note-toolbar {
+    display: flex; gap: 10px; margin-bottom: 20px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .note-toolbar button {
+    padding: 8px 18px; font-size: 13px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--panel);
+    color: var(--text); cursor: pointer; transition: all .2s;
+  }
+  .note-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .note-toolbar button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .note-toolbar button.primary:hover { filter: brightness(1.1); color: #fff; }
+  .note-count {
+    display: inline-flex; align-items: center;
+    padding: 0 4px; font-size: 12px; color: var(--text-dim);
+  }
+
+  /* 紧张感文案 */
+  .tip {
+    font-size: 18px; margin-bottom: 20px; padding: 14px 28px;
+    border-radius: 12px; background: var(--panel); color: var(--danger);
+    font-weight: 700; letter-spacing: 1px; text-align: center;
+    display: none; align-items: center; gap: 10px; border: 1px solid transparent;
+  }
+  .tip.show { display: flex; animation: tipPulse 2s ease-in-out infinite; }
+  @keyframes tipPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,77,77,0); }
+    50% { box-shadow: 0 0 18px 2px rgba(255,77,77,.35); }
+  }
+  .pulse-dot {
+    width: 10px; height: 10px; border-radius: 50%; background: var(--danger);
+    flex-shrink: 0; animation: dotPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes dotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: .35; transform: scale(.7); }
+  }
+
+  .num {
+    display: inline-block; font-variant-numeric: tabular-nums;
+    transition: transform .25s ease;
+  }
+  .num.bump { transform: scale(1.25); color: var(--accent); }
+
+  .stats {
+    display: flex; gap: 36px; margin-bottom: 24px;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .stat-item { text-align: center; }
+  .stat-value {
+    font-size: 26px; font-weight: 700; color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-value.remaining { color: var(--danger); }
+  .stat-label {
+    font-size: 12px; color: var(--text-dim);
+    margin-top: 4px; letter-spacing: 1px;
+  }
+
+  .progress-wrap { width: 100%; max-width: 960px; margin-bottom: 24px; }
+  .progress-bar {
+    height: 10px; border-radius: 6px; background: var(--cell-empty);
+    overflow: hidden; position: relative;
+  }
+  .progress-fill {
+    height: 100%; width: 0%; border-radius: 6px;
+    background: linear-gradient(90deg, var(--accent), var(--danger));
+    transition: width 1s linear; position: relative;
+  }
+  .progress-fill::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent);
+    animation: shine 2s linear infinite;
+  }
+  @keyframes shine {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .progress-label {
+    display: flex; justify-content: space-between;
+    font-size: 12px; color: var(--text-dim); margin-top: 6px;
+  }
+
+  /* 格子 */
+  .grid-container {
+    max-width: 960px; width: 100%;
+    display: grid; gap: 4px; padding: 20px;
+    background: var(--panel); border-radius: 16px;
+    justify-content: center; transition: background .3s;
+  }
+
+  .cell {
+    width: 100%; aspect-ratio: 1 / 1; border-radius: 3px;
+    background: var(--cell-empty); cursor: pointer; position: relative;
+    transition: transform .15s, background .3s, box-shadow .15s;
+  }
+  .cell.passed { background: var(--danger); }
+  .cell.current {
+    background: var(--current);
+    box-shadow: 0 0 8px var(--current);
+  }
+  .cell.has-note::after {
+    content: ""; position: absolute; top: 1px; right: 1px;
+    width: 4px; height: 4px; border-radius: 50%; background: #fff;
+    box-shadow: 0 0 3px rgba(0,0,0,.5);
+  }
+  .cell:hover {
+    transform: scale(1.5); z-index: 10;
+    box-shadow: 0 0 8px rgba(78,158,255,.8);
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed; z-index: 999; padding: 6px 12px;
+    font-size: 12px; border-radius: 6px;
+    background: rgba(0,0,0,.85); color: #fff;
+    pointer-events: none; opacity: 0; transition: opacity .15s;
+    white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  body.light .tooltip { background: rgba(30,30,50,.9); }
+  .tooltip.show { opacity: 1; }
+
+  /* 图例 */
+  .legend {
+    display: flex; gap: 24px; margin-top: 24px;
+    font-size: 13px; color: var(--text-dim);
+    flex-wrap: wrap; justify-content: center;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  /* 弹窗 */
+  .modal-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; padding: 20px;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    width: 100%; max-width: 420px; background: var(--panel);
+    border-radius: 16px; padding: 22px; border: 1px solid var(--border);
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+    animation: modalIn .2s ease;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(12px) scale(.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .modal-title {
+    font-size: 16px; font-weight: 600;
+    margin-bottom: 4px; color: var(--accent);
+  }
+  .modal-sub { font-size: 12px; color: var(--text-dim); margin-bottom: 14px; }
+  .modal textarea {
+    width: 100%; min-height: 110px; padding: 12px;
+    font-size: 14px; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: var(--bg); color: var(--text);
+    outline: none; resize: vertical; transition: border-color .2s;
+  }
+  .modal textarea:focus { border-color: var(--accent); }
+  .modal-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;
+  }
+  .modal-actions button {
+    padding: 8px 18px; font-size: 14px; border-radius: 8px;
+    cursor: pointer; border: 1px solid var(--border);
+    background: transparent; color: var(--text); transition: all .2s;
+  }
+  .modal-actions button:hover { border-color: var(--accent); color: var(--accent); }
+  .modal-actions button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+  }
+  .modal-actions button.primary:hover { filter: brightness(1.1); color: #fff; }
+  .modal-actions button.danger {
+    border-color: var(--danger); color: var(--danger);
+  }
+  .modal-actions button.danger:hover { background: var(--danger); color: #fff; }
+
+  /* 备注列表 */
+  .modal.wide { max-width: 640px; }
+  .note-list {
+    max-height: 420px; overflow-y: auto;
+    margin-top: 8px; border-top: 1px solid var(--border);
+  }
+  .note-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 4px; border-bottom: 1px solid var(--border);
+    cursor: pointer; transition: background .15s;
+  }
+  .note-row:hover { background: rgba(78,158,255,.08); }
+  .note-key {
+    flex-shrink: 0; font-size: 12px; color: var(--accent);
+    font-weight: 600; min-width: 90px;
+    font-variant-numeric: tabular-nums; padding-top: 2px;
+  }
+  .note-text {
+    flex: 1; font-size: 13px; color: var(--text);
+    line-height: 1.5; word-break: break-word; white-space: pre-wrap;
+  }
+  .note-empty {
+    text-align: center; color: var(--text-dim);
+    font-size: 13px; padding: 40px 0;
+  }
+  .note-list-foot {
+    font-size: 12px; color: var(--text-dim);
+    margin-top: 12px; text-align: center;
+  }
+  .note-list::-webkit-scrollbar { width: 6px; }
+  .note-list::-webkit-scrollbar-thumb {
+    background: var(--border); border-radius: 3px;
+  }
+
+  @media (max-width: 600px) {
+    h1 { font-size: 20px; }
+    .grid-container { padding: 12px; gap: 3px; }
+    .stat-value { font-size: 22px; }
+    .tip { font-size: 15px; padding: 12px 18px; }
+    .cd-value { font-size: 22px; }
+    .cd-item { min-width: 60px; }
+    .countdown { gap: 10px; }
+    .note-key { min-width: 70px; font-size: 11px; }
+    .day-year-bar .hint { display: none; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="toolbar">
+    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">☀️ 浅色</button>
+  </div>
+
+  <h1>人生时间格子</h1>
+  <p class="subtitle">按 100 年计算 · 点击格子可写备注</p>
+
+  <!-- 倒计时器 -->
+  <div class="countdown-box">
+    <div class="countdown-title">剩余生命倒计时</div>
+    <div class="countdown">
+      <div class="cd-item" id="cdDay">
+        <div class="cd-value" id="cdDayVal">--</div>
+        <div class="cd-label">天</div>
+      </div>
+      <div class="cd-item" id="cdHour">
+        <div class="cd-value" id="cdHourVal">--</div>
+        <div class="cd-label">时</div>
+      </div>
+      <div class="cd-item" id="cdMin">
+        <div class="cd-value" id="cdMinVal">--</div>
+        <div class="cd-label">分</div>
+      </div>
+      <div class="cd-item" id="cdSec">
+        <div class="cd-value" id="cdSecVal">--</div>
+        <div class="cd-label">秒</div>
+      </div>
+    </div>
+    <div class="cd-foot" id="cdFoot">以 100 岁为目标终点，每秒实时更新</div>
+  </div>
+
+  <div class="input-area">
+    <label>出生日期：</label>
+    <select id="yearSel"></select>
+    <select id="monthSel"></select>
+    <select id="daySel"></select>
+
+    <label for="unit">单位：</label>
+    <select id="unit">
+      <option value="year">年</option>
+      <option value="month">月</option>
+      <option value="day">日</option>
+    </select>
+
+    <button onclick="render(true)">生成</button>
+  </div>
+
+  <!-- 日模式年份切换条 -->
+  <div class="day-year-bar" id="dayYearBar">
+    <button id="prevYearBtn" onclick="changeDayYear(-1)">◀ 上一年</button>
+    <div class="year-label" id="dayYearLabel">--</div>
+    <button id="nextYearBtn" onclick="changeDayYear(1)">下一年 ▶</button>
+    <div class="hint">日模式按年查看，避免一次渲染过多格子</div>
+  </div>
+
+  <!-- 备注工具条 -->
+  <div class="note-toolbar">
+    <button class="primary" onclick="openNoteList()">
+      📋 备注总览 <span class="note-count" id="noteCount">(0)</span>
+    </button>
+    <button onclick="exportExcel()">⬇️ 导出 Excel</button>
+    <button onclick="document.getElementById('importFile').click()">⬆️ 导入 Excel</button>
+    <input type="file" id="importFile" accept=".xlsx,.xls,.csv"
+           style="display:none" onchange="importExcel(event)">
+  </div>
+
+  <div class="tip" id="tip">
+    <span class="pulse-dot"></span>
+    <span id="tipText"></span>
+  </div>
+
+  <div class="stats" id="stats">
+    <div class="stat-item">
+      <div class="stat-value" id="passedVal">0</div>
+      <div class="stat-label" id="passedLabel">已过年数</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value remaining" id="remainVal">0</div>
+      <div class="stat-label" id="remainLabel">剩余年数</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value" id="percentVal">0%</div>
+      <div class="stat-label">人生进度</div>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-label">
+      <span>0 岁</span>
+      <span id="progressMid">—</span>
+      <span>100 岁</span>
+    </div>
+  </div>
+
+  <div class="grid-container" id="grid"></div>
+
+  <div class="legend" id="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--danger);"></div>
+      <span>已度过</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--current);"></div>
+      <span>当前</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--cell-empty);"></div>
+      <span>剩余</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#fff;box-shadow:0 0 3px rgba(0,0,0,.5);"></div>
+      <span>有备注</span>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <!-- 编辑弹窗 -->
+  <div class="modal-mask" id="modalMask">
+    <div class="modal">
+      <div class="modal-title" id="modalTitle">编辑备注</div>
+      <div class="modal-sub" id="modalSub"></div>
+      <textarea id="modalText" placeholder="写下这个时间格子的故事、计划或心情…"></textarea>
+      <div class="modal-actions">
+        <button class="danger" onclick="deleteNote()">清除</button>
+        <button onclick="closeModal()">取消</button>
+        <button class="primary" onclick="saveNote()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 备注列表弹窗 -->
+  <div class="modal-mask" id="noteListMask">
+    <div class="modal wide">
+      <div class="modal-title">📋 备注总览</div>
+      <div class="modal-sub" id="noteListSub">点击任意行可编辑该备注</div>
+      <div class="note-list" id="noteList"></div>
+      <div class="note-list-foot" id="noteListFoot"></div>
+      <div class="modal-actions">
+        <button onclick="closeNoteList()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const TOTAL_YEARS = 100;
+  let birthDate = new Date(1995, 5, 15);
+  let currentUnit = 'year';
+  let timerId = null;
+  let editingKey = null;
+
+  // 日模式下当前查看的年份（初始为出生年）
+  let dayViewYear = birthDate.getFullYear();
+
+  const yearSel = document.getElementById('yearSel');
+  const monthSel = document.getElementById('monthSel');
+  const daySel = document.getElementById('daySel');
+  const tooltip = document.getElementById('tooltip');
+  const gridEl = document.getElementById('grid');
+  const dayYearBar = document.getElementById('dayYearBar');
+  const dayYearLabel = document.getElementById('dayYearLabel');
+
+  /* ---------- 备注存储 ---------- */
+  function loadNotes() {
+    try {
+      return JSON.parse(localStorage.getItem('lifeGridNotes') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+  function saveNotes(n) {
+    localStorage.setItem('lifeGridNotes', JSON.stringify(n));
+  }
+  let notes = loadNotes();
+
+  function updateNoteCount() {
+    document.getElementById('noteCount').textContent =
+      '(' + Object.keys(notes).length + ')';
+  }
+
+  /* ---------- 格子标签 ---------- */
+  function getCellLabel(index, unit) {
+    const b = birthDate;
+    if (unit === 'year') {
+      const y = b.getFullYear() + index;
+      return { key: String(y), label: y + ' 年' };
+    } else if (unit === 'month') {
+      const totalMonth = b.getMonth() + index;
+      const y = b.getFullYear() + Math.floor(totalMonth / 12);
+      const m = (totalMonth % 12) + 1;
+      const key = y + '-' + String(m).padStart(2, '0');
+      return { key, label: y + ' 年 ' + m + ' 月' };
+    } else {
+      const d = new Date(b.getFullYear(), b.getMonth(), b.getDate() + index);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const day = d.getDate();
+      const key = y + '-' + String(m).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+      return { key, label: y + ' 年 ' + m + ' 月 ' + day + ' 日' };
+    }
+  }
+
+  /* ---------- 初始化选择器 ---------- */
+  const realNow = new Date();
+
+  for (let y = realNow.getFullYear(); y >= realNow.getFullYear() - 100; y--) {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = y + ' 年';
+    yearSel.appendChild(opt);
+  }
+
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = m + ' 月';
+    monthSel.appendChild(opt);
+  }
+
+  function daysInMonth(y, m) {
+    return new Date(y, m, 0).getDate();
+  }
+
+  function fillDays() {
+    const y = parseInt(yearSel.value);
+    const m = parseInt(monthSel.value);
+    const maxDay = daysInMonth(y, m);
+    const prev = parseInt(daySel.value) || 1;
+
+    daySel.innerHTML = '';
+    for (let d = 1; d <= maxDay; d++) {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d + ' 日';
+      daySel.appendChild(opt);
+    }
+    daySel.value = Math.min(prev, maxDay);
+  }
+
+  yearSel.addEventListener('change', fillDays);
+  monthSel.addEventListener('change', fillDays);
+
+  yearSel.value = 1995;
+  monthSel.value = 6;
+  fillDays();
+  daySel.value = 15;
+
+  /* ---------- 主题 ---------- */
+  function toggleTheme() {
+    document.body.classList.toggle('light');
+    const isLight = document.body.classList.contains('light');
+    document.getElementById('themeBtn').textContent = isLight ? '🌙 深色' : '☀️ 浅色';
+  }
+
+  /* ---------- 数字跳动 ---------- */
+  function bumpNumber(el, newText) {
+    if (el.textContent === newText) return;
+    el.textContent = newText;
+    el.classList.add('bump');
+    setTimeout(() => el.classList.remove('bump'), 260);
+  }
+
+  function readBirth() {
+    const y = parseInt(yearSel.value);
+    const m = parseInt(monthSel.value);
+    const d = parseInt(daySel.value);
+    const b = new Date(y, m - 1, d);
+    b.setHours(0, 0, 0, 0);
+    return b;
+  }
+
+  /* ---------- 倒计时 ---------- */
+  function pad(n) {
+    return n < 10 ? '0' + n : '' + n;
+  }
+
+  function tickCountdown() {
+    const now = new Date();
+    const end = new Date(
+      birthDate.getFullYear() + TOTAL_YEARS,
+      birthDate.getMonth(),
+      birthDate.getDate(),
+      birthDate.getHours(),
+      birthDate.getMinutes(),
+      birthDate.getSeconds()
+    );
+
+    let diff = end - now;
+    if (diff < 0) diff = 0;
+
+    const totalSec = Math.floor(diff / 1000);
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+
+    bumpNumber(document.getElementById('cdDayVal'), days.toLocaleString());
+    document.getElementById('cdHourVal').textContent = pad(hours);
+    document.getElementById('cdMinVal').textContent = pad(mins);
+    document.getElementById('cdSecVal').textContent = pad(secs);
+
+    const secBox = document.getElementById('cdSec');
+    secBox.classList.add('tick');
+    setTimeout(() => secBox.classList.remove('tick'), 180);
+  }
+
+  /* ---------- 日模式年份切换 ---------- */
+  function changeDayYear(delta) {
+    dayViewYear += delta;
+    render(false);
+  }
+
+  function updateDayYearBar() {
+    const startYear = birthDate.getFullYear();
+    const endYear = startYear + TOTAL_YEARS - 1;
+    const nowYear = new Date().getFullYear();
+
+    dayYearBar.classList.toggle('show', currentUnit === 'day');
+    if (currentUnit !== 'day') return;
+
+    // 限制在当前年份区间内
+    if (dayViewYear < startYear) dayViewYear = startYear;
+    if (dayViewYear > endYear) dayViewYear = endYear;
+
+    dayYearLabel.textContent = dayViewYear + ' 年';
+
+    document.getElementById('prevYearBtn').disabled = (dayViewYear <= startYear);
+    document.getElementById('nextYearBtn').disabled = (dayViewYear >= endYear);
+  }
+
+  /* ---------- 主渲染 ---------- */
+  function render(animate) {
+    birthDate = readBirth();
+    currentUnit = document.getElementById('unit').value;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    if (birthDate > now) {
+      alert('出生日期不能晚于今天');
+      return;
+    }
+
+    let totalUnits, passedUnits, remainText, cols, unitName, remainUnitName;
+    let renderStart = 0, renderEnd = 0;   // 实际渲染的索引区间
+
+    if (currentUnit === 'year') {
+      totalUnits = TOTAL_YEARS;
+      let passed = now.getFullYear() - birthDate.getFullYear();
+      const anniv = new Date(now.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+      if (now < anniv) passed--;
+      passedUnits = Math.min(Math.max(passed, 0), TOTAL_YEARS);
+      unitName = '年';
+      remainUnitName = '年';
+      cols = 10;
+      renderStart = 0;
+      renderEnd = totalUnits;
+
+    } else if (currentUnit === 'month') {
+      totalUnits = TOTAL_YEARS * 12;
+      let months = (now.getFullYear() - birthDate.getFullYear()) * 12
+                 + (now.getMonth() - birthDate.getMonth());
+      if (now.getDate() < birthDate.getDate()) months--;
+      passedUnits = Math.min(Math.max(months, 0), totalUnits);
+      unitName = '月';
+      remainUnitName = '个月';
+      cols = 40;
+      renderStart = 0;
+      renderEnd = totalUnits;
+
+    } else {
+      // 日模式：只渲染 dayViewYear 这一年的格子
+      const endDate = new Date(
+        birthDate.getFullYear() + TOTAL_YEARS,
+        birthDate.getMonth(),
+        birthDate.getDate()
+      );
+      const msPerDay = 86400000;
+      totalUnits = Math.round((endDate - birthDate) / msPerDay);
+      passedUnits = Math.round((now - birthDate) / msPerDay);
+      passedUnits = Math.min(Math.max(passedUnits, 0), totalUnits);
+      unitName = '天';
+      remainUnitName = '天';
+      cols = 60;
+
+      // 当前查看年份的第一天 和 下一年第一天
+      const yearStartDate = new Date(dayViewYear, 0, 1);
+      const yearEndDate = new Date(dayViewYear + 1, 0, 1);
+
+      // 转成相对于出生日的天数索引
+      renderStart = Math.round((yearStartDate - birthDate) / msPerDay);
+      renderEnd = Math.round((yearEndDate - birthDate) / msPerDay);
+
+      // 限制在 [0, totalUnits] 内
+      renderStart = Math.max(0, renderStart);
+      renderEnd = Math.min(totalUnits, renderEnd);
+    }
+
+    const remaining = totalUnits - passedUnits;
+    const percent = (passedUnits / totalUnits * 100);
+
+    document.getElementById('tipText').textContent =
+      `你最多还能活 ${remaining.toLocaleString()} ${remainUnitName}`;
+    document.getElementById('tip').classList.add('show');
+
+    bumpNumber(document.getElementById('passedVal'), passedUnits.toLocaleString());
+    bumpNumber(document.getElementById('remainVal'), remaining.toLocaleString());
+    bumpNumber(document.getElementById('percentVal'), percent.toFixed(2) + '%');
+
+    document.getElementById('passedLabel').textContent = '已过' + unitName + '数';
+    document.getElementById('remainLabel').textContent = '剩余' + unitName + '数';
+
+    document.getElementById('progressFill').style.width = percent + '%';
+    document.getElementById('progressMid').textContent =
+      '已走过 ' + percent.toFixed(4) + '%';
+
+    // 渲染格子
+    gridEl.innerHTML = '';
+    gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+    const fragment = document.createDocumentFragment();
+
+    for (let i = renderStart; i < renderEnd; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.index = i;
+
+      if (i < passedUnits) {
+        cell.classList.add('passed');
+      } else if (i === passedUnits) {
+        cell.classList.add('current');
+      }
+
+      // 只在这里算 key 用于标记 has-note，label 延迟到 hover 再算
+      const info = getCellLabel(i, currentUnit);
+      cell.dataset.key = info.key;
+
+      if (notes[info.key]) {
+        cell.classList.add('has-note');
+      }
+
+      fragment.appendChild(cell);
+    }
+
+    gridEl.appendChild(fragment);
+
+    updateDayYearBar();
+    tickCountdown();
+    updateNoteCount();
+  }
+
+  /* ---------- 事件委托：hover / 点击 ---------- */
+  let hoveredCell = null;
+
+  gridEl.addEventListener('mouseover', (e) => {
+    const cell = e.target.closest('.cell');
+    if (!cell || cell === hoveredCell) return;
+    hoveredCell = cell;
+
+    const index = +cell.dataset.index;
+    const info = getCellLabel(index, currentUnit);
+    tooltip.textContent = info.label + (notes[info.key] ? ' 📝' : '');
+    tooltip.classList.add('show');
+  });
+
+  gridEl.addEventListener('mousemove', (e) => {
+    if (!hoveredCell) return;
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top = (e.clientY + 14) + 'px';
+  });
+
+  gridEl.addEventListener('mouseout', (e) => {
+    const cell = e.target.closest('.cell');
+    if (!cell) return;
+    // 只有真正离开格子时才隐藏
+    if (!cell.contains(e.relatedTarget)) {
+      hoveredCell = null;
+      tooltip.classList.remove('show');
+    }
+  });
+
+  gridEl.addEventListener('click', (e) => {
+    const cell = e.target.closest('.cell');
+    if (!cell) return;
+    const index = +cell.dataset.index;
+    const info = getCellLabel(index, currentUnit);
+    openModal(info.key, info.label);
+  });
+
+  /* ---------- 编辑弹窗 ---------- */
+  const modalMask = document.getElementById('modalMask');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalSub = document.getElementById('modalSub');
+  const modalText = document.getElementById('modalText');
+
+  function openModal(key, label) {
+    editingKey = key;
+    modalTitle.textContent = '编辑备注';
+    modalSub.textContent = label;
+    modalText.value = notes[key] || '';
+    modalMask.classList.add('show');
+    setTimeout(() => modalText.focus(), 50);
+  }
+
+  function closeModal() {
+    modalMask.classList.remove('show');
+    editingKey = null;
+  }
+
+  function saveNote() {
+    if (!editingKey) return;
+    const val = modalText.value.trim();
+    if (val) {
+      notes[editingKey] = val;
+    } else {
+      delete notes[editingKey];
+    }
+    saveNotes(notes);
+    closeModal();
+    render(false);
+  }
+
+  function deleteNote() {
+    if (!editingKey) return;
+    delete notes[editingKey];
+    saveNotes(notes);
+    closeModal();
+    render(false);
+  }
+
+  modalMask.addEventListener('click', (e) => {
+    if (e.target === modalMask) closeModal();
+  });
+
+  /* ---------- 备注列表 ---------- */
+  const noteListMask = document.getElementById('noteListMask');
+
+  function openNoteList() {
+    const list = document.getElementById('noteList');
+    const foot = document.getElementById('noteListFoot');
+    const keys = Object.keys(notes).sort();
+
+    list.innerHTML = '';
+
+    if (keys.length === 0) {
+      list.innerHTML = '<div class="note-empty">还没有任何备注<br>点击格子写下第一条吧 ✍️</div>';
+      foot.textContent = '';
+    } else {
+      keys.forEach(k => {
+        const row = document.createElement('div');
+        row.className = 'note-row';
+
+        const keyEl = document.createElement('div');
+        keyEl.className = 'note-key';
+        keyEl.textContent = k;
+
+        const textEl = document.createElement('div');
+        textEl.className = 'note-text';
+        textEl.textContent = notes[k];
+
+        row.appendChild(keyEl);
+        row.appendChild(textEl);
+
+        row.addEventListener('click', () => {
+          closeNoteList();
+          openModal(k, k);
+        });
+
+        list.appendChild(row);
+      });
+
+      foot.textContent = `共 ${keys.length} 条备注 · 点击任意行可编辑`;
+    }
+
+    noteListMask.classList.add('show');
+  }
+
+  function closeNoteList() {
+    noteListMask.classList.remove('show');
+  }
+
+  noteListMask.addEventListener('click', (e) => {
+    if (e.target === noteListMask) closeNoteList();
+  });
+
+  /* ---------- Excel 导出 ---------- */
+  function exportExcel() {
+    const keys = Object.keys(notes).sort();
+
+    if (keys.length === 0) {
+      alert('还没有任何备注，先写几条再导出吧～');
+      return;
+    }
+
+    const data = [['时间', '备注']];
+    keys.forEach(k => {
+      data.push([k, notes[k]]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [{ wch: 16 }, { wch: 60 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '人生备注');
+
+    const today = new Date();
+    const stamp = today.getFullYear() + '-' +
+      String(today.getMonth() + 1).padStart(2, '0') + '-' +
+      String(today.getDate()).padStart(2, '0');
+
+    XLSX.writeFile(wb, `人生时间格子备注_${stamp}.xlsx`);
+  }
+
+  /* ---------- Excel 导入 ---------- */
+  function importExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onload = function (e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: 'array' });
+
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+        if (rows.length < 2) {
+          alert('文件里没有有效数据');
+          return;
+        }
+
+        let imported = 0;
+        const mode = confirm(
+          '点击「确定」：合并到现有备注（同时间会覆盖）\n' +
+          '点击「取消」：清空现有备注后导入'
+        );
+
+        if (!mode) {
+          notes = {};
+        }
+
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          if (!row || row.length < 2) continue;
+
+          const key = String(row[0]).trim();
+          const text = String(row[1]).trim();
+
+          if (key && text && key !== 'undefined') {
+            notes[key] = text;
+            imported++;
+          }
+        }
+
+        saveNotes(notes);
+        render(false);
+
+        alert(`导入完成，共导入 ${imported} 条备注`);
+      } catch (err) {
+        console.error(err);
+        alert('导入失败：' + err.message);
+      } finally {
+        event.target.value = '';
+      }
+    };
+
+    reader.readAsArrayBuffer(file);
+  }
+
+  /* ---------- 快捷键 ---------- */
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (modalMask.classList.contains('show')) closeModal();
+      if (noteListMask.classList.contains('show')) closeNoteList();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'
+        && modalMask.classList.contains('show')) {
+      saveNote();
+    }
+  });
+
+  /* ---------- 每秒刷新 ---------- */
+  let lastRenderDay = new Date().getDate();
+
+  function startAutoRefresh() {
+    if (timerId) clearInterval(timerId);
+    timerId = setInterval(() => {
+      tickCountdown();
+      const now = new Date();
+      if (now.getDate() !== lastRenderDay) {
+        lastRenderDay = now.getDate();
+        render(false);
+      }
+    }, 1000);
+  }
+
+  document.getElementById('unit').addEventListener('change', () => {
+    // 切到日模式时，默认查看当前年份（如果出生年还没到就看出生年）
+    if (document.getElementById('unit').value === 'day') {
+      const startYear = birthDate.getFullYear();
+      const nowYear = new Date().getFullYear();
+      dayViewYear = Math.max(startYear, Math.min(nowYear, startYear + TOTAL_YEARS - 1));
+    }
+    render(true);
+  });
+
+  render(true);
+  startAutoRefresh();
+</script>
+</body>
+</html>
